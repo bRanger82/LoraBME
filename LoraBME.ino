@@ -409,9 +409,9 @@ void loop()
 {
   if (timer_flag)
   {
+    Serial.println("[LOOP] TMR EVENT");
     Read_BME_Values();
     timer_flag = false;  
-    Serial.println("[LOOP] TMR EVENT");
   }
   
   if (digitalRead(BTN_TRIG_SEND_MSG_TEMP) == HIGH)
