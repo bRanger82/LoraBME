@@ -13,10 +13,6 @@
 #define BTN_TRIG_SEND_MSG_TEMP 12
 bool trig_send_msg_temp_flag = false;
 
-bool show_received_data_on_display = true;
-bool show_sending_data_on_display = true;
-
-
 #define  SEALEVELPRESSURE_HPA (1013.25)  
 
 #define  BME280_I2C_ADDR  0x76
@@ -34,11 +30,11 @@ float Altitude =    0;
 bool bme_valid_data = false;
 bool bme_sensor_found = false;
 
-#define OPTION_GET_TEMPERATURE  "OPT|1|"
-#define OPTION_GET_PRESSURE     "OPT|2|"
-#define OPTION_GET_HUMIDITY     "OPT|3|"
-#define OPTION_GET_ALTITUDE     "OPT|4|"
-#define OPTION_GET_HELP         "HELP"
+#define CMD_GET_TEMPERATURE  "OPT|1|"
+#define CMD_GET_PRESSURE     "OPT|2|"
+#define CMD_GET_HUMIDITY     "OPT|3|"
+#define CMD_GET_ALTITUDE     "OPT|4|"
+#define CMD_GET_HELP         "HELP"
 
 String incoming = "";
 
@@ -99,10 +95,10 @@ void Send_Answer_Available_Commands(void)
   String reply = F("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n");
   reply += F("<reply>\n");
   reply += F("\t<commands>\n");
-  reply += "\t\t<command value=\"" + String(OPTION_GET_TEMPERATURE) + "\" remark=\"Temperature\" />\n";
-  reply += "\t\t<command value=\"" + String(OPTION_GET_PRESSURE) + "\" remark=\"Pressure\" />\n";
-  reply += "\t\t<command value=\"" + String(OPTION_GET_HUMIDITY) + "\" remark=\"Humidity\" />\n";
-  reply += "\t\t<command value=\"" + String(OPTION_GET_ALTITUDE) + "\" remark=\"Altitude\" />\n";
+  reply += "\t\t<command value=\"" + String(CMD_GET_TEMPERATURE) + "\" remark=\"Temperature\" />\n";
+  reply += "\t\t<command value=\"" + String(CMD_GET_PRESSURE) + "\" remark=\"Pressure\" />\n";
+  reply += "\t\t<command value=\"" + String(CMD_GET_HUMIDITY) + "\" remark=\"Humidity\" />\n";
+  reply += "\t\t<command value=\"" + String(CMD_GET_ALTITUDE) + "\" remark=\"Altitude\" />\n";
   reply += F("\t</commands>\n");
   reply += F("</reply>");
   Serial.println(reply);   
@@ -183,20 +179,20 @@ void ProcessSerialCmd(void)
     Serial.print("[ProcessSerialCmd] Processing command: ");
     Serial.println(serialLine);
     
-    if (serialLine.startsWith(OPTION_GET_TEMPERATURE) || trig_send_msg_temp_flag)
+    if (serialLine.startsWith(CMD_GET_TEMPERATURE) || trig_send_msg_temp_flag)
     {
       (bme_valid_data) ? Send_Answer(String(Temperature), UNIT_TEMP) : Send_Answer_No_Data();
       trig_send_msg_temp_flag = false;
-    } else if (serialLine.startsWith(OPTION_GET_PRESSURE))
+    } else if (serialLine.startsWith(CMD_GET_PRESSURE))
     {
       (bme_valid_data) ? Send_Answer(String(Pressure), UNIT_PRESSURE) : Send_Answer_No_Data();
-    } else if (serialLine.startsWith(OPTION_GET_HUMIDITY))
+    } else if (serialLine.startsWith(CMD_GET_HUMIDITY))
     {
       (bme_valid_data) ? Send_Answer(String(Humidity), UNIT_HUMIDITY) : Send_Answer_No_Data();
-    } else if (serialLine.startsWith(OPTION_GET_ALTITUDE))
+    } else if (serialLine.startsWith(CMD_GET_ALTITUDE))
     {
       (bme_valid_data) ? Send_Answer(String(Altitude), UNIT_ALTITUDE) : Send_Answer_No_Data();
-    } else if (serialLine.startsWith(OPTION_GET_HELP))
+    } else if (serialLine.startsWith(CMD_GET_HELP))
     {
       Send_Answer_Available_Commands();
     } else
@@ -261,9 +257,30 @@ void DisplayLoRaReadyMessage(void)
   Heltec.display->display(); 
 }
 
+void DisplayLoRaDisplaySendingMessage(void)
+{
+  Heltec.display->clear();
+  Heltec.display->setTextAlignment(TEXT_ALIGN_LEFT);
+  Heltec.display->setFont(ArialMT_Plain_10);
+  Heltec.display->drawString(0 , 30 , "Sending message ...");
+  Heltec.display->display(); 
+}
+
+void DisplayLoRaDisplayReceivingMessage(void)
+{
+  Heltec.display->clear();
+  Heltec.display->setTextAlignment(TEXT_ALIGN_LEFT);
+  Heltec.display->setFont(ArialMT_Plain_10);
+  Heltec.display->drawString(0 , 30 , "Receiving message ...");
+  Heltec.display->display(); 
+}
+
 void sendMessage(String outgoing)
 {
   digitalWrite(LED, HIGH);
+  
+  DisplayLoRaDisplaySendingMessage();
+  
   LoRa.beginPacket();                   // start packet
   LoRa.write(destination);              // add destination address
   LoRa.write(localAddress);             // add sender address
@@ -272,18 +289,16 @@ void sendMessage(String outgoing)
   LoRa.print(outgoing);                 // add payload
   LoRa.endPacket();                     // finish packet and send it
                              
-  if (show_sending_data_on_display)
-  {
-    Heltec.display->clear();
-    Heltec.display->setTextAlignment(TEXT_ALIGN_LEFT);
-    Heltec.display->setFont(ArialMT_Plain_10);
-    Heltec.display->drawString(0 , 4  , "Message sent:");
-    Heltec.display->drawString(0 , 15 , "Msg Num     " + String(msgCount));
-    Heltec.display->drawString(0 , 26 , "Dest. Addr. 0x" + String(destination, HEX));
-    Heltec.display->drawString(0 , 37 , "Local Addr. 0x" + String(localAddress, HEX));
-    Heltec.display->drawString(0 , 48 , "Length      " + String(outgoing.length()));
-    Heltec.display->display();    
-  }
+  Heltec.display->clear();
+  Heltec.display->setTextAlignment(TEXT_ALIGN_LEFT);
+  Heltec.display->setFont(ArialMT_Plain_10);
+  Heltec.display->drawString(0 , 4  , "Message sent:");
+  Heltec.display->drawString(0 , 15 , "Msg Num     " + String(msgCount));
+  Heltec.display->drawString(0 , 26 , "Dest. Addr. 0x" + String(destination, HEX));
+  Heltec.display->drawString(0 , 37 , "Local Addr. 0x" + String(localAddress, HEX));
+  Heltec.display->drawString(0 , 48 , "Length      " + String(outgoing.length()));
+  Heltec.display->display();    
+
   msgCount++;                         // increment message ID
   
   digitalWrite(LED, LOW);
@@ -330,7 +345,9 @@ void onReceive(int packetSize)
   byte incomingLength = LoRa.read();    // incoming msg length
 
   incoming = "";
-
+  
+  DisplayLoRaDisplayReceivingMessage();
+  
   while (LoRa.available())
   {
     incoming += (char)LoRa.read();
@@ -348,21 +365,19 @@ void onReceive(int packetSize)
   if (recipient != localAddress && recipient != 0xFF) 
   {
     Serial.println("This message is not for me.");
+    DisplayLoRaReadyMessage();
     return;
   }
 
-  if (show_received_data_on_display)
-  {
-    Heltec.display->clear();
-    Heltec.display->setTextAlignment(TEXT_ALIGN_LEFT);
-    Heltec.display->setFont(ArialMT_Plain_10);
-    Heltec.display->drawString(0 , 4  , "Message received:");
-    Heltec.display->drawString(0 , 15 , "Msg Num     " + String(LoRa.packetSnr()));
-    Heltec.display->drawString(0 , 26 , "Received " + String(incomingLength) + " bytes");
-    Heltec.display->drawString(0 , 37 , "RSSI: " + String(LoRa.packetRssi()));  
-    Heltec.display->drawString(0 , 48 , "Received from: 0x" + String(recipient, HEX));
-    Heltec.display->display();    
-  }
+  Heltec.display->clear();
+  Heltec.display->setTextAlignment(TEXT_ALIGN_LEFT);
+  Heltec.display->setFont(ArialMT_Plain_10);
+  Heltec.display->drawString(0 , 4  , "Message received:");
+  Heltec.display->drawString(0 , 15 , "Msg Num     " + String(LoRa.packetSnr()));
+  Heltec.display->drawString(0 , 26 , "Received " + String(incomingLength) + " bytes");
+  Heltec.display->drawString(0 , 37 , "RSSI: " + String(LoRa.packetRssi()));  
+  Heltec.display->drawString(0 , 48 , "Received from: 0x" + String(recipient, HEX));
+  Heltec.display->display();    
 
   // if message is for this device, or broadcast, print details:
   Serial.println("Received from: 0x" + String(sender, HEX));
