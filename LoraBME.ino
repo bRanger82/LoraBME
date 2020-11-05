@@ -167,6 +167,10 @@ void Send_Answer_Available_Commands(void)
   reply += "\t\t<command value=\"" + String(CMD_GET_PRESSURE) + "\" remark=\"Pressure\" />\n";
   reply += "\t\t<command value=\"" + String(CMD_GET_HUMIDITY) + "\" remark=\"Humidity\" />\n";
   reply += "\t\t<command value=\"" + String(CMD_GET_ALTITUDE) + "\" remark=\"Altitude\" />\n";
+  reply += "\t\t<command value=\"" + String(CMD_GET_TCS_R) + "\" remark=\"TSC_Light_Red_Part\" />\n";
+  reply += "\t\t<command value=\"" + String(CMD_GET_TCS_G) + "\" remark=\"TSC_Light_Green_Part\" />\n";
+  reply += "\t\t<command value=\"" + String(CMD_GET_TCS_B) + "\" remark=\"TSC_Light_Blue_Part\" />\n";
+  reply += "\t\t<command value=\"" + String(CMD_GET_TCS_LUX) + "\" remark=\"TSC_Light_Calculated_Lux\" />\n";
   reply += F("\t</commands>\n");
   reply += F("</reply>");
   Serial.println(reply);   
