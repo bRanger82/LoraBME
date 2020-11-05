@@ -8,6 +8,25 @@
 #include <Adafruit_Sensor.h>
 #include <Adafruit_BME280.h>
 #include "heltec.h"
+#include "Adafruit_TCS34725.h"
+
+/* Initialise with specific int time and gain values */
+Adafruit_TCS34725 tcs = Adafruit_TCS34725(TCS34725_INTEGRATIONTIME_700MS, TCS34725_GAIN_1X);
+
+#define TCS34725_ADDR   0x29
+bool tsc34725_sensor_found = false;
+uint16_t r = 0;
+uint16_t g = 0;
+uint16_t b = 0;
+uint16_t c = 0;
+uint16_t colorTemp= 0;
+uint16_t lux = 0;
+
+#define UNIT_RGB "hex"
+#define UNIT_LUX "lux"
+
+#define I2C_EEPROM_ADDR 0x50
+const byte writeDelay = 5; // time required for writing the byte [ms]
 
 #define LED    LED_BUILTIN
 #define BTN_TRIG_SEND_MSG_TEMP 12
@@ -34,6 +53,10 @@ bool bme_sensor_found = false;
 #define CMD_GET_PRESSURE     "OPT|2|"
 #define CMD_GET_HUMIDITY     "OPT|3|"
 #define CMD_GET_ALTITUDE     "OPT|4|"
+#define CMD_GET_TCS_R        "OPT|5|"
+#define CMD_GET_TCS_G        "OPT|6|"
+#define CMD_GET_TCS_B        "OPT|7|"
+#define CMD_GET_TCS_LUX      "OPT|8|"
 #define CMD_GET_HELP         "HELP"
 
 String incoming = "";
@@ -69,6 +92,41 @@ void enableTimer(void)
   Serial.println(" done");
 }
 
+bool checkEEPROMExists(void)
+{
+  Wire.beginTransmission(I2C_EEPROM_ADDR);
+  return (Wire.endTransmission() == 0);
+}
+
+void writeByte(long eeAddress, byte value)
+{
+  long _eeAddress = eeAddress;
+  byte _value = value;
+
+  Wire.beginTransmission(I2C_EEPROM_ADDR);
+  Wire.write(_eeAddress >> 8);
+  Wire.write(_eeAddress);
+  Wire.write(_value);
+  Wire.endTransmission();
+  delay(writeDelay);
+}
+
+byte readByte(long eeAddress)
+{
+  long _eeAddress = eeAddress;
+  byte value = 0;
+  
+  Wire.beginTransmission(I2C_EEPROM_ADDR);
+  Wire.write(_eeAddress >> 8);
+  Wire.write(_eeAddress);
+  Wire.endTransmission();
+  Wire.requestFrom((uint8_t) I2C_EEPROM_ADDR, (uint8_t) 1);
+  delay(writeDelay);
+  if (Wire.available()) value = (Wire.read());
+
+  return value;
+} 
+
 void Read_BME_Values(void) 
 {
   if (!bme_sensor_found)
@@ -85,6 +143,16 @@ void Read_BME_Values(void)
   {
     bme_valid_data = true;
   }
+}
+
+void Read_TCS_Values(void) 
+{
+  if (!tsc34725_sensor_found)
+    return;
+    
+  tcs.getRawData(&r, &g, &b, &c);
+  colorTemp = tcs.calculateColorTemperature_dn40(r, g, b, c);
+  lux = tcs.calculateLux(r, g, b);
 }
 
 /*
@@ -192,6 +260,18 @@ void ProcessSerialCmd(void)
     } else if (serialLine.startsWith(CMD_GET_ALTITUDE))
     {
       (bme_valid_data) ? Send_Answer(String(Altitude), UNIT_ALTITUDE) : Send_Answer_No_Data();
+    } else if (serialLine.startsWith(CMD_GET_TCS_R))
+    {
+      (bme_valid_data) ? Send_Answer(String(r), UNIT_RGB) : Send_Answer_No_Data();
+    } else if (serialLine.startsWith(CMD_GET_TCS_G))
+    {
+      (bme_valid_data) ? Send_Answer(String(g), UNIT_RGB) : Send_Answer_No_Data();
+    } else if (serialLine.startsWith(CMD_GET_TCS_B))
+    {
+      (bme_valid_data) ? Send_Answer(String(b), UNIT_RGB) : Send_Answer_No_Data();
+    } else if (serialLine.startsWith(CMD_GET_TCS_LUX))
+    {
+      (bme_valid_data) ? Send_Answer(String(lux), UNIT_LUX) : Send_Answer_No_Data();
     } else if (serialLine.startsWith(CMD_GET_HELP))
     {
       Send_Answer_Available_Commands();
@@ -215,10 +295,10 @@ void SetupLoRa(void)
   //WIFI Kit series V1 not support Vext control
   Heltec.begin(true /*DisplayEnable Enable*/, true /*Heltec.LoRa Enable*/, true /*Serial Enable*/, true /*PABOOST Enable*/, BAND /*long BAND*/);
   
-  LoRa.setTxPower(20, RF_PACONFIG_PASELECT_PABOOST); //20dB output must via PABOOST
+  //LoRa.setTxPower(20, RF_PACONFIG_PASELECT_PABOOST); //20dB output must via PABOOST
   //LoRa.enableCrc();
   //LoRa.setPreambleLength(4);
-  LoRa.setSignalBandwidth(7.8E3);
+  //LoRa.setSignalBandwidth(7.8E3);
   
   // register the receive callback
   LoRa.onReceive(onReceive);
@@ -230,7 +310,7 @@ void Setup_BME_Sensor(void)
 {
   Serial.println("[STARTUP] BME280 initialization ...");
   // Display is using the I2C interface as well, so for the BME sensor the Wire1 has to be defined.
-  Wire1.begin(21,22);
+
   
   unsigned status = bme.begin(BME280_I2C_ADDR, &Wire1);  
   if (status) 
@@ -244,8 +324,24 @@ void Setup_BME_Sensor(void)
   } else
   {
     Serial.println("[STARTUP] Could not find a valid BME280 sensor, check wiring, address, sensor ID!");
-    Serial.print("[STARTUP] SensorID was: 0x"); Serial.println(bme.sensorID(),16);
+    Serial.print("[STARTUP] BME280 SensorID was: 0x"); Serial.println(bme.sensorID(), 16);
   }
+}
+
+void Setup_TSC_Sensor(void)
+{
+  if (tcs.begin(TCS34725_ADDR, &Wire1)) 
+  {
+    Serial.println("[STARTUP] TCS34725 Sensor found and sucessfully initialized");
+    Serial.print("[STARTUP] Waiting 2 seconds for reading first TCS34725 values ...");
+    delay(2000);
+    Serial.println(" done");
+    tsc34725_sensor_found = true;
+    Read_TCS_Values();
+  } else 
+  {
+    Serial.println("[STARTUP] Could not find a valid TCS34725 Sensor!");
+  }  
 }
 
 void DisplayLoRaReadyMessage(void)
@@ -398,7 +494,11 @@ void setup()
   delay(50);
   SetupLoRa();
   delay(50);
+  Wire1.begin(21,22);
+  delay(50);
   Setup_BME_Sensor();
+  delay(50);
+  Setup_TSC_Sensor();
   delay(50);
   enableTimer();
   delay(50);
@@ -409,9 +509,10 @@ void loop()
 {
   if (timer_flag)
   {
-    Serial.println("[LOOP] TMR EVENT");
     Read_BME_Values();
+    Read_TCS_Values();
     timer_flag = false;  
+    Serial.println("[LOOP] TMR EVENT");
   }
   
   if (digitalRead(BTN_TRIG_SEND_MSG_TEMP) == HIGH)
