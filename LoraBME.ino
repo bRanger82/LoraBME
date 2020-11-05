@@ -15,15 +15,15 @@ Adafruit_TCS34725 tcs = Adafruit_TCS34725(TCS34725_INTEGRATIONTIME_700MS, TCS347
 
 #define TCS34725_ADDR   0x29
 bool tsc34725_sensor_found = false;
-uint16_t r = 0;
-uint16_t g = 0;
-uint16_t b = 0;
-uint16_t c = 0;
-uint16_t colorTemp= 0;
-uint16_t lux = 0;
+uint16_t r = 0; // red color part of the environment light
+uint16_t g = 0; // green color part of the environment light
+uint16_t b = 0; // blue color part of the environment light
+uint16_t c = 0; // clearance part of the environment light
+uint16_t colorTemp= 0;  // calculated color temperature of the environemnt light
+uint16_t lux = 0; // calculated luminous flux per unit area
 
 #define UNIT_RGB "hex"
-#define UNIT_LUX "lux"
+#define UNIT_LUX "lx"
 
 #define I2C_EEPROM_ADDR 0x50
 const byte writeDelay = 5; // time required for writing the byte [ms]
