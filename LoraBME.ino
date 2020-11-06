@@ -18,7 +18,7 @@
 #define LED    LED_BUILTIN
 #define BTN_TRIG_SEND_MSG_TEMP 12 // trigger send msg (temperature) via button press
 bool trig_send_msg_temp_flag = false;
-#define BTN_SHOW_STATUS_SCREEN 35 // switch display to the status screen
+#define BTN_SHOW_STATUS_SCREEN 39 // switch display to the status screen
 
 String incoming = "";
 
