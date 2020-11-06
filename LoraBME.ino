@@ -278,6 +278,7 @@ void ProcessCmdPrintEEPROMDebug(void)
     Serial.print(readByte(addr), HEX);
     Serial.print("\t");  
   }
+  Serial.println("");
 }
 
 void ProcessSerialCmd(void)
