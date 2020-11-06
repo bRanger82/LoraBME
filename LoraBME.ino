@@ -9,57 +9,16 @@
 #include <Adafruit_BME280.h>
 #include "heltec.h"
 #include "Adafruit_TCS34725.h"
+#include "TCS34725_Settings.h"
+#include "BME280_Settings.h"
+#include "I2C_EEPROM_Settings.h"
+#include "LoRa_Settings.h"
 
-/* Initialise with specific int time and gain values */
-Adafruit_TCS34725 tcs = Adafruit_TCS34725(TCS34725_INTEGRATIONTIME_700MS, TCS34725_GAIN_1X);
-
-#define TCS34725_ADDR   0x29
-bool tsc34725_sensor_found = false;
-uint16_t r = 0;
-uint16_t g = 0;
-uint16_t b = 0;
-uint16_t c = 0;
-uint16_t colorTemp= 0;
-uint16_t lux = 0;
-
-#define UNIT_RGB "hex"
-#define UNIT_LUX "lx"
-
-#define I2C_EEPROM_ADDR 0x50
-const byte writeDelay = 5; // time required for writing the byte [ms]
 
 #define LED    LED_BUILTIN
-#define BTN_TRIG_SEND_MSG_TEMP 12
+#define BTN_TRIG_SEND_MSG_TEMP 12 // trigger send msg (temperature) via button press
 bool trig_send_msg_temp_flag = false;
-
-#define  SEALEVELPRESSURE_HPA (1013.25)  
-
-#define  BME280_I2C_ADDR  0x76
-Adafruit_BME280           bme;
-
-#define UNIT_TEMP     "*C"
-#define UNIT_PRESSURE "hPa"
-#define UNIT_HUMIDITY "%"
-#define UNIT_ALTITUDE "m"
-
-float Temperature = 0;
-float Pressure =    0;
-float Humidity =    0;
-float Altitude =    0;
-bool bme_valid_data = false;
-bool bme_sensor_found = false;
-
-#define CMD_GET_TEMPERATURE  "OPT|1|"
-#define CMD_GET_PRESSURE     "OPT|2|"
-#define CMD_GET_HUMIDITY     "OPT|3|"
-#define CMD_GET_ALTITUDE     "OPT|4|"
-#define CMD_GET_TCS_R        "OPT|5|"
-#define CMD_GET_TCS_G        "OPT|6|"
-#define CMD_GET_TCS_B        "OPT|7|"
-#define CMD_GET_TCS_LUX      "OPT|8|"
-#define CMD_READ_EEPROM      "OPT|9|"
-#define CMD_WRITE_EEPROM     "OPT|10|"
-#define CMD_GET_HELP         "HELP"
+#define BTN_SHOW_STATUS_SCREEN 35 // switch display to the status screen
 
 String incoming = "";
 
@@ -67,8 +26,6 @@ volatile bool data_received = false;
 volatile bool timer_flag = false;
 hw_timer_t * timer = NULL;
 portMUX_TYPE timerMux = portMUX_INITIALIZER_UNLOCKED;
-
-#define BAND    433E6  //you can set band here directly,e.g. 868E6,915E6
 
 String outgoing;              // outgoing message
 
@@ -93,41 +50,6 @@ void enableTimer(void)
   timerAlarmEnable(timer);
   Serial.println(" done");
 }
-
-bool checkEEPROMExists(void)
-{
-  Wire.beginTransmission(I2C_EEPROM_ADDR);
-  return (Wire.endTransmission() == 0);
-}
-
-void writeByte(long eeAddress, byte value)
-{
-  long _eeAddress = eeAddress;
-  byte _value = value;
-
-  Wire1.beginTransmission(I2C_EEPROM_ADDR);
-  Wire1.write(_eeAddress >> 8);
-  Wire1.write(_eeAddress);
-  Wire1.write(_value);
-  Wire1.endTransmission();
-  delay(writeDelay);
-}
-
-byte readByte(long eeAddress)
-{
-  long _eeAddress = eeAddress;
-  byte value = 0;
-  
-  Wire1.beginTransmission(I2C_EEPROM_ADDR);
-  Wire1.write(_eeAddress >> 8);
-  Wire1.write(_eeAddress);
-  Wire1.endTransmission();
-  Wire1.requestFrom((uint8_t) I2C_EEPROM_ADDR, (uint8_t) 1);
-  delay(writeDelay);
-  if (Wire1.available()) value = (Wire1.read());
-
-  return value;
-} 
 
 void Read_BME_Values(void) 
 {
@@ -343,6 +265,21 @@ void ProcessCmdEEPROM_Set(String serialLine)
   }
 }
 
+void ProcessCmdPrintEEPROMDebug(void)
+{
+  for (long addr = 1; addr <= 255; addr++)
+  {
+    if (addr % 8 == 0)
+    {
+      Serial.println("");
+    }
+    Serial.print(addr, HEX);
+    Serial.print(":");
+    Serial.print(readByte(addr), HEX);
+    Serial.print("\t");  
+  }
+}
+
 void ProcessSerialCmd(void)
 {
   if (Serial.available() > 0 || data_received || trig_send_msg_temp_flag)
@@ -396,9 +333,12 @@ void ProcessSerialCmd(void)
     } else if (serialLine.startsWith(CMD_WRITE_EEPROM))
     {
       ProcessCmdEEPROM_Set(serialLine);
-    }else if (serialLine.startsWith(CMD_GET_HELP))
+    } else if (serialLine.startsWith(CMD_GET_HELP))
     {
       Send_Answer_Available_Commands();
+    } else if (serialLine.startsWith("DEBUG_READ_EEPROM"))
+    {
+      ProcessCmdPrintEEPROMDebug();  // debug only
     } else
     {
       Send_Answer_Unknown();
@@ -410,32 +350,38 @@ void ProcessSerialCmd(void)
 
 void SetupInOutputs(void)
 {
+  Serial.print("[STARTUP] Setup In/Output ...");
   pinMode(LED, OUTPUT);
   pinMode(BTN_TRIG_SEND_MSG_TEMP, INPUT);  
+  pinMode(BTN_SHOW_STATUS_SCREEN, INPUT);
+  Serial.println("done");
 }
 
 void SetupLoRa(void)
 {
   //WIFI Kit series V1 not support Vext control
   Heltec.begin(true /*DisplayEnable Enable*/, true /*Heltec.LoRa Enable*/, true /*Serial Enable*/, true /*PABOOST Enable*/, BAND /*long BAND*/);
-  
-  //LoRa.setTxPower(20, RF_PACONFIG_PASELECT_PABOOST); //20dB output must via PABOOST
+  delay(50);
+  Serial.print("[STARTUP] LoRa initialization ...");
+  LoRa.setTxPower(20, RF_PACONFIG_PASELECT_PABOOST); //20dB output must via PABOOST
   //LoRa.enableCrc();
-  //LoRa.setPreambleLength(4);
-  //LoRa.setSignalBandwidth(7.8E3);
-  
+  LoRa.setSpreadingFactor(DEFAULT_LORA_SPREADING_FACTOR);
+  LoRa.setPreambleLength(DEFAULT_LORA_PREAMBLE_LENGTH);
+  LoRa.setFrequency(DEFAULT_LORA_FREQUENCY);
+  LoRa.setSignalBandwidth(DEFAULT_LORA_SIGNAL_BANDWIDTH);
+  LoRa.setCodingRate4(DEFAULT_LORA_CODING_RATE);
   // register the receive callback
   LoRa.onReceive(onReceive);
   // put the radio into receive mode
   LoRa.receive();
+  Serial.println("done");
 }
 
 void Setup_BME_Sensor(void)
 {
-  Serial.println("[STARTUP] BME280 initialization ...");
+  Serial.println("[STARTUP] BME280 initialization started");
   // Display is using the I2C interface as well, so for the BME sensor the Wire1 has to be defined.
 
-  
   unsigned status = bme.begin(BME280_I2C_ADDR, &Wire1);  
   if (status) 
   {
@@ -450,10 +396,13 @@ void Setup_BME_Sensor(void)
     Serial.println("[STARTUP] Could not find a valid BME280 sensor, check wiring, address, sensor ID!");
     Serial.print("[STARTUP] BME280 SensorID was: 0x"); Serial.println(bme.sensorID(), 16);
   }
+  
+  Serial.println("[STARTUP] BME280 initialization done");
 }
 
 void Setup_TSC_Sensor(void)
 {
+  Serial.println("[STARTUP] TCS34725 initialization started");
   if (tcs.begin(TCS34725_ADDR, &Wire1)) 
   {
     Serial.println("[STARTUP] TCS34725 Sensor found and sucessfully initialized");
@@ -466,6 +415,7 @@ void Setup_TSC_Sensor(void)
   {
     Serial.println("[STARTUP] Could not find a valid TCS34725 Sensor!");
   }  
+  Serial.println("[STARTUP] TCS34725 initialization done");
 }
 
 void DisplayLoRaReadyMessage(void)
@@ -473,7 +423,11 @@ void DisplayLoRaReadyMessage(void)
   Heltec.display->clear();
   Heltec.display->setTextAlignment(TEXT_ALIGN_LEFT);
   Heltec.display->setFont(ArialMT_Plain_10);
-  Heltec.display->drawString(0 , 30 , "LoRa transceiver ready ...");
+  Heltec.display->drawString(0 , 5 , "LoRa transceiver ready ...");
+  Heltec.display->drawString(0 , 16 , "Frequency: " + String(LoRa.getFrequency() / 1000000) + "MHz");
+  Heltec.display->drawString(0 , 27 , "Sig. bandw.: " + String(LoRa.getSignalBandwidth() / 1000) + "kHz");
+  Heltec.display->drawString(0 , 38 , "Spreadingfactor: " + String(LoRa.getSpreadingFactor()));
+  Heltec.display->drawString(0 , 49 , "Preamble Length: " + String(LoRa.getPreambleLength()));
   Heltec.display->display(); 
 }
 
@@ -612,13 +566,54 @@ void onReceive(int packetSize)
   data_received = true;
 }
 
+/*
+ * Reads the LoRa settings from the EEPROM.
+ * If no eeprom is available or no settings are saved yet -> default values are used.
+ */
+void ReadLoRaAdressSettings(void)
+{
+  byte destinationAdressFromEEPROM = readByte(EEPROM_POS_LORA_LOCAL_ADDR);
+  byte localAdressFromEEPROM = readByte(EEPROM_POS_LORA_DESTINATION_ADDR);
+  
+  localAddress = DEFAULT_LORA_LOCAL_ADDR;    
+  destination = DEFAULT_LORA_DESTINATION_ADDR; 
+
+  if (localAdressFromEEPROM == 0xFF || destinationAdressFromEEPROM == 0xFF)
+  {
+    Serial.print("[SETUP] EEPROM setup NOT available, using default values, for local address: ");
+    Serial.print(localAddress, HEX);
+    Serial.print(" - destination address: ");
+    Serial.println(destination, HEX);
+  } else if (localAdressFromEEPROM == destinationAdressFromEEPROM)
+  {
+    Serial.print("[STARTUP] EEPROM available, but have the same local and destination address - using default values, for local address: ");
+    Serial.print(localAddress, HEX);
+    Serial.print(" - destination address: ");
+    Serial.println(destination, HEX);
+  } else
+  {
+    localAddress = localAdressFromEEPROM;
+    destination = destinationAdressFromEEPROM;
+    Serial.print("[STARTUP] EEPROM setup IS available, reading from EEPROM, for local address: ");
+    Serial.print(localAddress, HEX);
+    Serial.print(" - destination address: ");
+    Serial.println(destination, HEX);
+  }
+}
+
 void setup()
 {
+  Serial.begin(115200);
+  Serial.flush();
+  delay(50);
+    
+  Wire1.begin(21,22);
+  delay(50);
+  ReadLoRaAdressSettings();
+  delay(50);
   SetupInOutputs();
   delay(50);
   SetupLoRa();
-  delay(50);
-  Wire1.begin(21,22);
   delay(50);
   Setup_BME_Sensor();
   delay(50);
@@ -642,7 +637,7 @@ void loop()
   if (digitalRead(BTN_TRIG_SEND_MSG_TEMP) == HIGH)
   {
     Serial.println("[LOOP] Button-Pressed: manual trigger for sending temperature data via LoRa set");
-    trig_send_msg_temp_flag = true;  
+    trig_send_msg_temp_flag = true;     
   }
   
   // parse for a packet, and call onReceive with the result:
