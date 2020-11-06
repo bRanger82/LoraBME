@@ -426,8 +426,8 @@ void DisplayLoRaReadyMessage(void)
   Heltec.display->drawString(0 , 5 , "LoRa transceiver ready ...");
   Heltec.display->drawString(0 , 16 , "Frequency: " + String(LoRa.getFrequency() / 1000000) + "MHz");
   Heltec.display->drawString(0 , 27 , "Sig. bandw.: " + String(LoRa.getSignalBandwidth() / 1000) + "kHz");
-  Heltec.display->drawString(0 , 38 , "Spreadingfactor: " + String(LoRa.getSpreadingFactor()));
-  Heltec.display->drawString(0 , 49 , "Preamble Length: " + String(LoRa.getPreambleLength()));
+  Heltec.display->drawString(0 , 38 , "Dest. Addr. 0x" + String(destination, HEX));
+  Heltec.display->drawString(0 , 49 , "Local Addr. 0x" + String(localAddress, HEX));
   Heltec.display->display(); 
 }
 
