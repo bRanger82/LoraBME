@@ -258,7 +258,7 @@ void ProcessCmdEEPROM_Set(String serialLine)
     str_value.toCharArray(arr_eeprom_value, sizeof(arr_eeprom_value));
     byte value = (byte)atoi(arr_eeprom_value);
     writeByte(addr, value);
-    Send_Answer_EEPROM_Write(String(value, HEX));
+    Send_Answer_EEPROM_Write("0x" + String(value, HEX));
   }
 }
 
