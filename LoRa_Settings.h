@@ -24,4 +24,16 @@
 #define EEPROM_POS_LORA_DESTINATION_ADDR  0x40
 #define DEFAULT_LORA_LOCAL_ADDR           0x2F
 #define DEFAULT_LORA_DESTINATION_ADDR     0x2E
+
+enum remark_msg 
+{
+  _ok,
+  _error,
+  _unknown,
+  _no_data_avaialble,
+  _eeprom_write_ok,
+  _eeprom_read_ok
+};
+
+
 #endif
