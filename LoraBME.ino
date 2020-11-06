@@ -157,7 +157,6 @@ void Send_Message(String s_value, String s_unit, enum remark_msg remarkMsg, bool
       reply += "ERROR_REQUEST_CODE_UNKNOWN";
       break;   
   }
-  reply += "REQEUEST_OK";
   reply += "</remark>\n";
   reply += "</reply>";
   Serial.println(reply);
