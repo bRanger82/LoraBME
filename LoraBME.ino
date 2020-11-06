@@ -1,8 +1,8 @@
 /*
   Heltec.LoRa Multiple Communication
-
   Referenced/Based on https://github.com/Heltec-Aaron-Lee/WiFi_Kit_series
 */
+
 
 #include <Wire.h>
 #include <Adafruit_Sensor.h>
@@ -15,15 +15,15 @@ Adafruit_TCS34725 tcs = Adafruit_TCS34725(TCS34725_INTEGRATIONTIME_700MS, TCS347
 
 #define TCS34725_ADDR   0x29
 bool tsc34725_sensor_found = false;
-uint16_t r = 0; // red color part of the environment light
-uint16_t g = 0; // green color part of the environment light
-uint16_t b = 0; // blue color part of the environment light
-uint16_t c = 0; // clearance part of the environment light
-uint16_t colorTemp= 0;  // calculated color temperature of the environemnt light
-uint16_t lux = 0; // calculated luminous flux per unit area
+uint16_t r = 0;
+uint16_t g = 0;
+uint16_t b = 0;
+uint16_t c = 0;
+uint16_t colorTemp= 0;
+uint16_t lux = 0;
 
 #define UNIT_RGB "hex"
-#define UNIT_LUX "lx"
+#define UNIT_LUX "lux"
 
 #define I2C_EEPROM_ADDR 0x50
 const byte writeDelay = 5; // time required for writing the byte [ms]
@@ -57,6 +57,8 @@ bool bme_sensor_found = false;
 #define CMD_GET_TCS_G        "OPT|6|"
 #define CMD_GET_TCS_B        "OPT|7|"
 #define CMD_GET_TCS_LUX      "OPT|8|"
+#define CMD_READ_EEPROM      "OPT|9|"
+#define CMD_WRITE_EEPROM     "OPT|10|"
 #define CMD_GET_HELP         "HELP"
 
 String incoming = "";
@@ -103,11 +105,11 @@ void writeByte(long eeAddress, byte value)
   long _eeAddress = eeAddress;
   byte _value = value;
 
-  Wire.beginTransmission(I2C_EEPROM_ADDR);
-  Wire.write(_eeAddress >> 8);
-  Wire.write(_eeAddress);
-  Wire.write(_value);
-  Wire.endTransmission();
+  Wire1.beginTransmission(I2C_EEPROM_ADDR);
+  Wire1.write(_eeAddress >> 8);
+  Wire1.write(_eeAddress);
+  Wire1.write(_value);
+  Wire1.endTransmission();
   delay(writeDelay);
 }
 
@@ -116,13 +118,13 @@ byte readByte(long eeAddress)
   long _eeAddress = eeAddress;
   byte value = 0;
   
-  Wire.beginTransmission(I2C_EEPROM_ADDR);
-  Wire.write(_eeAddress >> 8);
-  Wire.write(_eeAddress);
-  Wire.endTransmission();
-  Wire.requestFrom((uint8_t) I2C_EEPROM_ADDR, (uint8_t) 1);
+  Wire1.beginTransmission(I2C_EEPROM_ADDR);
+  Wire1.write(_eeAddress >> 8);
+  Wire1.write(_eeAddress);
+  Wire1.endTransmission();
+  Wire1.requestFrom((uint8_t) I2C_EEPROM_ADDR, (uint8_t) 1);
   delay(writeDelay);
-  if (Wire.available()) value = (Wire.read());
+  if (Wire1.available()) value = (Wire1.read());
 
   return value;
 } 
@@ -161,18 +163,34 @@ void Read_TCS_Values(void)
 void Send_Answer_Available_Commands(void)
 {
   String reply = F("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n");
-  reply += F("<reply>\n");
-  reply += F("\t<commands>\n");
-  reply += "\t\t<command value=\"" + String(CMD_GET_TEMPERATURE) + "\" remark=\"Temperature\" />\n";
-  reply += "\t\t<command value=\"" + String(CMD_GET_PRESSURE) + "\" remark=\"Pressure\" />\n";
-  reply += "\t\t<command value=\"" + String(CMD_GET_HUMIDITY) + "\" remark=\"Humidity\" />\n";
-  reply += "\t\t<command value=\"" + String(CMD_GET_ALTITUDE) + "\" remark=\"Altitude\" />\n";
-  reply += "\t\t<command value=\"" + String(CMD_GET_TCS_R) + "\" remark=\"TSC_Light_Red_Part\" />\n";
-  reply += "\t\t<command value=\"" + String(CMD_GET_TCS_G) + "\" remark=\"TSC_Light_Green_Part\" />\n";
-  reply += "\t\t<command value=\"" + String(CMD_GET_TCS_B) + "\" remark=\"TSC_Light_Blue_Part\" />\n";
-  reply += "\t\t<command value=\"" + String(CMD_GET_TCS_LUX) + "\" remark=\"TSC_Light_Calculated_Lux\" />\n";
-  reply += F("\t</commands>\n");
-  reply += F("</reply>");
+  reply += "<reply>\n";
+  reply += "\t<commands>\n";
+  reply += "\t\t<command value=\"" + String(CMD_GET_TEMPERATURE) + "\" remark=\"Temperature\" parameterId =\"0\"/>\n";
+  reply += "\t\t<command value=\"" + String(CMD_GET_PRESSURE) + "\" remark=\"Pressure\" parameterId =\"0\"/>\n";
+  reply += "\t\t<command value=\"" + String(CMD_GET_HUMIDITY) + "\" remark=\"Humidity\" parameterId =\"0\"/>\n";
+  reply += "\t\t<command value=\"" + String(CMD_GET_ALTITUDE) + "\" remark=\"Altitude\" parameterId =\"0\"/>\n";
+  reply += "\t\t<command value=\"" + String(CMD_GET_TCS_R) + "\" remark=\"TSC_Light_Red_Part\" parameterId =\"0\"/>\n";
+  reply += "\t\t<command value=\"" + String(CMD_GET_TCS_G) + "\" remark=\"TSC_Light_Green_Part\" parameterId =\"0\"/>\n";
+  reply += "\t\t<command value=\"" + String(CMD_GET_TCS_B) + "\" remark=\"TSC_Light_Blue_Part\" parameterId =\"0\"/>\n";
+  reply += "\t\t<command value=\"" + String(CMD_GET_TCS_LUX) + "\" remark=\"TSC_Light_Calculated_Lux\" parameterId =\"0\"/>\n";
+  reply += "\t\t<command value=\"" + String(CMD_READ_EEPROM) + "\" remark=\"Get_EEPROM_value\" parameterId =\"1\"/>\n";
+  reply += "\t\t<command value=\"" + String(CMD_WRITE_EEPROM) + "\" remark=\"Set_EEPROM_value\" parameterId =\"2\"/>\n";
+  reply += "\t</commands>\n";
+  reply += "\t<params>\n";
+  reply += "\t\t<id index=\"0\">\n";
+  reply += "\t\t\t<param pos=\"0\" name=\"NO_PARAM\" type=\"\" />\n";  
+  reply += "\t\t\t<param pos=\"1\" name=\"NO_PARAM\" type=\"\" />\n";  
+  reply += "\t\t</id>\n";  
+  reply += "\t\t<id index=\"1\">\n";
+  reply += "\t\t\t<param pos=\"0\" name=\"EEPROM_ADDR\" type=\"LONG\" />\n";  
+  reply += "\t\t\t<param pos=\"1\" name=\"NO_PARAM\" type=\"\" />\n";  
+  reply += "\t\t</id>\n"; 
+  reply += "\t\t<id index=\"2\">\n";
+  reply += "\t\t\t<param pos=\"0\" name=\"EEPROM_ADDR\" type=\"LONG\" />\n";  
+  reply += "\t\t\t<param pos=\"1\" name=\"EEPROM_VALUE\" type=\"BYTE\" />\n";  
+  reply += "\t\t</id>\n";  
+  reply += "\t</params>\n";
+  reply += "</reply>";
   Serial.println(reply);   
   sendMessage(reply);
 }
@@ -229,6 +247,102 @@ void Send_Answer(String s_value, String s_unit)
   sendMessage(reply);
 }
 
+void Send_Answer_EEPROM_Read(String s_value)
+{
+  String reply = F("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n");
+  reply += F("<reply>\n");
+  reply += F("\t<valid>true</valid>\n");
+  reply += F("\t<value>");
+  reply += s_value;
+  reply += F("</value>\n");
+  reply += F("\t<unit>");
+  reply += F("</unit>\n");
+  reply += F("\t<remark>REQEUEST_EEPROM_READ_OK</remark>\n");
+  reply += F("</reply>");
+  Serial.println(reply);
+  sendMessage(reply);
+}
+
+void Send_Answer_EEPROM_Write(void)
+{
+  String reply = F("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n");
+  reply += F("<reply>\n");
+  reply += F("\t<valid>true</valid>\n");
+  reply += F("\t<value>");
+  reply += F("</value>\n");
+  reply += F("\t<unit>");
+  reply += F("</unit>\n");
+  reply += F("\t<remark>REQEUEST_EEPROM_WRITE_OK</remark>\n");
+  reply += F("</reply>");
+  Serial.println(reply);
+  sendMessage(reply);
+}
+
+/*
+ * Returns a substring based on a seperator char in a string. 
+ */
+String getValue(String data, char separator, int index)
+{
+  int found = 0;
+  int strIndex[] = { 0, -1 };
+  int maxIndex = data.length() - 1;
+
+  for (int i = 0; i <= maxIndex && found <= index; i++) 
+  {
+    if (data.charAt(i) == separator || i == maxIndex) 
+    {
+      found++;
+      strIndex[0] = strIndex[1] + 1;
+      strIndex[1] = (i == maxIndex) ? i+1 : i;
+    }
+  }
+  return found > index ? data.substring(strIndex[0], strIndex[1]) : "";
+}
+
+void ProcessCmdEEPROM_Get(String serialLine)
+{
+  String str_addr = getValue(serialLine, '|', 2);
+  Serial.print("[EEPROM READ] ");
+  Serial.print("Address: ");
+  Serial.println(str_addr);
+  if (str_addr.length() < 1)
+  {
+    Send_Answer_No_Data();
+  } else
+  {
+    char arr_eeprom_addr[str_addr.length() + 1];
+    str_addr.toCharArray(arr_eeprom_addr, sizeof(arr_eeprom_addr));
+    long addr = atol(arr_eeprom_addr);     
+    Send_Answer_EEPROM_Read("0x" + String(readByte(addr), HEX));
+  }
+}
+
+void ProcessCmdEEPROM_Set(String serialLine)
+{
+  String str_addr = getValue(serialLine, '|', 2);
+  String str_value = getValue(serialLine, '|', 3);
+  Serial.print("[EEPROM WRITE] ");
+  Serial.print("Address: ");
+  Serial.print(str_addr);
+  Serial.print(" - Value: ");
+  Serial.println(str_value);
+  if (str_addr.length() < 1 || str_value.length() < 1)
+  {
+    Send_Answer_No_Data();
+  } else
+  {
+    char arr_eeprom_addr[str_addr.length() + 1];
+    str_addr.toCharArray(arr_eeprom_addr, sizeof(arr_eeprom_addr));
+    long addr = atol(arr_eeprom_addr);  
+
+    char arr_eeprom_value[str_value.length() + 1];
+    str_value.toCharArray(arr_eeprom_value, sizeof(arr_eeprom_value));
+    byte value = (byte)atoi(arr_eeprom_value);
+    writeByte(addr, value);
+    Send_Answer_EEPROM_Write();
+  }
+}
+
 void ProcessSerialCmd(void)
 {
   if (Serial.available() > 0 || data_received || trig_send_msg_temp_flag)
@@ -266,17 +380,23 @@ void ProcessSerialCmd(void)
       (bme_valid_data) ? Send_Answer(String(Altitude), UNIT_ALTITUDE) : Send_Answer_No_Data();
     } else if (serialLine.startsWith(CMD_GET_TCS_R))
     {
-      (bme_valid_data) ? Send_Answer(String(r), UNIT_RGB) : Send_Answer_No_Data();
+      Send_Answer(String(r), UNIT_RGB);
     } else if (serialLine.startsWith(CMD_GET_TCS_G))
     {
-      (bme_valid_data) ? Send_Answer(String(g), UNIT_RGB) : Send_Answer_No_Data();
+      Send_Answer(String(g), UNIT_RGB);
     } else if (serialLine.startsWith(CMD_GET_TCS_B))
     {
-      (bme_valid_data) ? Send_Answer(String(b), UNIT_RGB) : Send_Answer_No_Data();
+      Send_Answer(String(b), UNIT_RGB);
     } else if (serialLine.startsWith(CMD_GET_TCS_LUX))
     {
-      (bme_valid_data) ? Send_Answer(String(lux), UNIT_LUX) : Send_Answer_No_Data();
-    } else if (serialLine.startsWith(CMD_GET_HELP))
+      Send_Answer(String(lux), UNIT_LUX);
+    } else if (serialLine.startsWith(CMD_READ_EEPROM))
+    {
+      ProcessCmdEEPROM_Get(serialLine);
+    } else if (serialLine.startsWith(CMD_WRITE_EEPROM))
+    {
+      ProcessCmdEEPROM_Set(serialLine);
+    }else if (serialLine.startsWith(CMD_GET_HELP))
     {
       Send_Answer_Available_Commands();
     } else
