@@ -23,7 +23,7 @@ uint16_t colorTemp= 0;
 uint16_t lux = 0;
 
 #define UNIT_RGB "hex"
-#define UNIT_LUX "lux"
+#define UNIT_LUX "lx"
 
 #define I2C_EEPROM_ADDR 0x50
 const byte writeDelay = 5; // time required for writing the byte [ms]
