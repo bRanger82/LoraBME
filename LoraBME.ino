@@ -3,7 +3,6 @@
   Referenced/Based on https://github.com/Heltec-Aaron-Lee/WiFi_Kit_series
 */
 
-
 #include <Wire.h>
 #include <Adafruit_Sensor.h>
 #include <Adafruit_BME280.h>
@@ -13,7 +12,6 @@
 #include "BME280_Settings.h"
 #include "I2C_EEPROM_Settings.h"
 #include "LoRa_Settings.h"
-
 
 #define LED    LED_BUILTIN
 #define BTN_TRIG_SEND_MSG_TEMP 12 // trigger send msg (temperature) via button press
@@ -117,20 +115,61 @@ void Send_Answer_Available_Commands(void)
   sendMessage(reply);
 }
 
+void Send_Message(String s_value, String s_unit, enum remark_msg remarkMsg, bool valid)
+{
+  String reply = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n";
+  reply += "<reply>\n";
+  reply += "\t<valid>";
+  if (valid)
+  {
+    reply += "true";  
+  } else
+  {
+    reply += "false";
+  }
+  reply += "</valid>\n";
+  reply += "\t<value>";
+  reply += s_value;
+  reply += "</value>\n";
+  reply += "\t<unit>";
+  reply += s_unit;
+  reply += "</unit>\n";
+  reply += "\t<remark>";
+  switch(remarkMsg)
+  {
+    case _ok:
+      reply += "REQEUEST_OK";
+      break;
+    case _no_data_avaialble:
+      reply += "NO_DATA_AVAILABLE";
+      break;
+    case _eeprom_write_ok:
+      reply += "REQEUEST_EEPROM_WRITE_OK";
+      break;
+    case _eeprom_read_ok:
+      reply += "REQEUEST_EEPROM_READ_OK";
+      break;
+    case _unknown:
+    case _error:
+      reply += "ERROR_REQUEST_CODE_UNKNOWN";
+      break;    
+    default:
+      reply += "ERROR_REQUEST_CODE_UNKNOWN";
+      break;   
+  }
+  reply += "REQEUEST_OK";
+  reply += "</remark>\n";
+  reply += "</reply>";
+  Serial.println(reply);
+  sendMessage(reply);  
+}
+
 /*
  * Method sends out a notification, that no data is currently available, to the lora receiver and serial monitor.
  */
 void Send_Answer_No_Data(void)
 {
-  String reply = F("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n");
-  reply += F("<reply>\n");
-  reply += F("\t<valid>false</valid>\n");
-  reply += F("\t<value>0</value>\n");
-  reply += F("\t<unit>X</unit>\n");
-  reply += F("\t<remark>NO_DATA_AVAILABLE</remark>\n");
-  reply += F("</reply>");
-  Serial.println(reply); 
-  sendMessage(reply); 
+  Send_Message("0", "X", _no_data_avaialble, false);
 }
 
 /*
@@ -138,15 +177,7 @@ void Send_Answer_No_Data(void)
  */
 void Send_Answer_Unknown(void)
 {
-  String reply = F("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n");
-  reply += F("<reply>\n");
-  reply += F("\t<valid>false</valid>\n");
-  reply += F("\t<value>0</value>\n");
-  reply += F("\t<unit>X</unit>\n");
-  reply += F("\t<remark>ERROR_REQUEST_CODE_UNKNOWN</remark>\n");
-  reply += F("</reply>");
-  Serial.println(reply);  
-  sendMessage(reply);
+  Send_Message("0", "X", _unknown, false);
 }
 
 /*
@@ -154,50 +185,17 @@ void Send_Answer_Unknown(void)
  */
 void Send_Answer(String s_value, String s_unit)
 {
-  String reply = F("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n");
-  reply += F("<reply>\n");
-  reply += F("\t<valid>true</valid>\n");
-  reply += F("\t<value>");
-  reply += s_value;
-  reply += F("</value>\n");
-  reply += F("\t<unit>");
-  reply += s_unit;
-  reply += F("</unit>\n");
-  reply += F("\t<remark>REQEUEST_OK</remark>\n");
-  reply += F("</reply>");
-  Serial.println(reply);
-  sendMessage(reply);
+  Send_Message(s_value, s_unit, _ok, true);
 }
 
 void Send_Answer_EEPROM_Read(String s_value)
 {
-  String reply = F("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n");
-  reply += F("<reply>\n");
-  reply += F("\t<valid>true</valid>\n");
-  reply += F("\t<value>");
-  reply += s_value;
-  reply += F("</value>\n");
-  reply += F("\t<unit>");
-  reply += F("</unit>\n");
-  reply += F("\t<remark>REQEUEST_EEPROM_READ_OK</remark>\n");
-  reply += F("</reply>");
-  Serial.println(reply);
-  sendMessage(reply);
+  Send_Message(s_value, "", _eeprom_read_ok, true);
 }
 
-void Send_Answer_EEPROM_Write(void)
+void Send_Answer_EEPROM_Write(String s_value)
 {
-  String reply = F("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n");
-  reply += F("<reply>\n");
-  reply += F("\t<valid>true</valid>\n");
-  reply += F("\t<value>");
-  reply += F("</value>\n");
-  reply += F("\t<unit>");
-  reply += F("</unit>\n");
-  reply += F("\t<remark>REQEUEST_EEPROM_WRITE_OK</remark>\n");
-  reply += F("</reply>");
-  Serial.println(reply);
-  sendMessage(reply);
+  Send_Message(s_value, "", _eeprom_write_ok, true);
 }
 
 /*
@@ -261,12 +259,13 @@ void ProcessCmdEEPROM_Set(String serialLine)
     str_value.toCharArray(arr_eeprom_value, sizeof(arr_eeprom_value));
     byte value = (byte)atoi(arr_eeprom_value);
     writeByte(addr, value);
-    Send_Answer_EEPROM_Write();
+    Send_Answer_EEPROM_Write(String(value, HEX));
   }
 }
 
 void ProcessCmdPrintEEPROMDebug(void)
 {
+  Serial.println("Process Read EEPROM values:");
   for (long addr = 1; addr <= 255; addr++)
   {
     if (addr % 8 == 0)
@@ -278,7 +277,7 @@ void ProcessCmdPrintEEPROMDebug(void)
     Serial.print(readByte(addr), HEX);
     Serial.print("\t");  
   }
-  Serial.println("");
+  Serial.println("Process Read EEPROM done");
 }
 
 void ProcessSerialCmd(void)
@@ -634,11 +633,16 @@ void loop()
     timer_flag = false;  
     Serial.println("[LOOP] TMR EVENT");
   }
-  
+
   if (digitalRead(BTN_TRIG_SEND_MSG_TEMP) == HIGH)
   {
     Serial.println("[LOOP] Button-Pressed: manual trigger for sending temperature data via LoRa set");
     trig_send_msg_temp_flag = true;     
+  }
+  if (digitalRead(BTN_SHOW_STATUS_SCREEN) == HIGH)
+  {
+    DisplayLoRaReadyMessage();
+    delay(100);
   }
   
   // parse for a packet, and call onReceive with the result:
