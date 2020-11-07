@@ -6,8 +6,8 @@ const byte writeDelay = 5; // time required for writing the byte [ms]
 
 bool checkEEPROMExists(void)
 {
-  Wire1.beginTransmission(I2C_EEPROM_ADDR);
-  return (Wire1.endTransmission() == 0);
+  Wire.beginTransmission(I2C_EEPROM_ADDR);
+  return (Wire.endTransmission() == 0);
 }
 
 void writeByte(long eeAddress, byte value)
@@ -20,11 +20,11 @@ void writeByte(long eeAddress, byte value)
   long _eeAddress = eeAddress;
   byte _value = value;
 
-  Wire1.beginTransmission(I2C_EEPROM_ADDR);
-  Wire1.write(_eeAddress >> 8);
-  Wire1.write(_eeAddress);
-  Wire1.write(_value);
-  Wire1.endTransmission();
+  Wire.beginTransmission(I2C_EEPROM_ADDR);
+  Wire.write(_eeAddress >> 8);
+  Wire.write(_eeAddress);
+  Wire.write(_value);
+  Wire.endTransmission();
   delay(writeDelay);
 }
 
@@ -38,13 +38,13 @@ byte readByte(long eeAddress)
   long _eeAddress = eeAddress;
   byte value = 0;
   
-  Wire1.beginTransmission(I2C_EEPROM_ADDR);
-  Wire1.write(_eeAddress >> 8);
-  Wire1.write(_eeAddress);
-  Wire1.endTransmission();
-  Wire1.requestFrom((uint8_t) I2C_EEPROM_ADDR, (uint8_t) 1);
+  Wire.beginTransmission(I2C_EEPROM_ADDR);
+  Wire.write(_eeAddress >> 8);
+  Wire.write(_eeAddress);
+  Wire.endTransmission();
+  Wire.requestFrom((uint8_t) I2C_EEPROM_ADDR, (uint8_t) 1);
   delay(writeDelay);
-  if (Wire1.available()) value = (Wire1.read());
+  if (Wire.available()) value = (Wire.read());
   return value;
 } 
 
